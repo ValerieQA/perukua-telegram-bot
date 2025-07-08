@@ -1,10 +1,10 @@
 # Telegram Bot API
-python-telegram-bot==20.7
+python-telegram-bot==21.0.1
 
-# HTTP client for asynchronous requests
+# HTTP client for async requests
 aiohttp==3.9.1
 
-# Working with environment variables
+# Environment variables management
 python-dotenv==1.0.0
 
 # Logging
@@ -16,7 +16,6 @@ asyncio-throttle==1.0.2
 # For working with JSON and dates
 python-dateutil==2.8.2
 
-# For processing audio files (if necessary)
+# For audio file processing (if needed )
 pydub==0.25.1
-
 
