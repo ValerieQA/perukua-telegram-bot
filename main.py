@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Telegram Bot для Перукуа - Персональный ассистент для управления проектами
-Интегрируется с Notion API для управления проектами и OpenAI API для обработки естественного языка
+Telegram Bot for Peruquois — Personal assistant for project management
+Integrates with the Notion API for project handling and the OpenAI API for natural-language processing
 """
 
 import os
@@ -12,10 +12,10 @@ from typing import Optional, Dict, Any
 
 from telegram import Update, Message
 from telegram.ext import (
-    Application, 
-    CommandHandler, 
-    MessageHandler, 
-    filters, 
+    Application,
+    CommandHandler,
+    MessageHandler,
+    filters,
     ContextTypes
 )
 
@@ -23,273 +23,297 @@ from config import Config
 from notion_api import NotionAPI
 from openai_api import OpenAIAPI
 
-# Настройка логирования
+# Logging setup
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-class PerukuaBot:
-    """Основной класс Telegram бота для Перукуа"""
-    
+class PeruquoisBot:
+    """Main Telegram bot class for Peruquois"""
+
     def __init__(self):
         self.config = Config()
         self.notion = NotionAPI()
         self.openai = OpenAIAPI()
-        
+
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Обработчик команды /start"""
+        """Handler for /start command"""
         welcome_message = """
-🌟 Привет, Перукуа! Я твой персональный ассистент для управления проектами.
+🌟 Hello, Peruquois! I'm your personal assistant for project management.
 
-Я помогу тебе:
-• Сохранять новые идеи и проекты
-• Отслеживать статус текущих проектов
-• Организовывать твои творческие замыслы
-• Напоминать о важных задачах
+I'll help you:
+• Save new ideas and projects  
+• Track the status of current projects  
+• Organise your creative concepts  
+• Remind you about important tasks  
 
-Просто пиши мне как обычно - голосом или текстом. Я пойму, что ты хочешь сделать, и организую всё за тебя.
+Just talk to me naturally—in voice or text. I’ll understand what you want to do and organise everything for you.
 
-Доступные команды:
-/start - показать это сообщение
-/projects - показать все проекты
-/active - показать активные проекты
-/help - помощь
+Available commands:
+/start    – show this message  
+/projects – show all projects  
+/active   – show active projects  
+/help     – command reference  
 
-Готова начать? Расскажи мне о своих идеях! ✨
+Ready to begin? Tell me about your ideas! ✨
         """
         await update.message.reply_text(welcome_message)
-        
+
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Обработчик команды /help"""
+        """Handler for /help command"""
         help_message = """
-🔮 Как я работаю:
+🔮 **How I work**
 
-📝 **Создание проектов:**
-Просто расскажи мне о своей идее:
-• "У меня есть идея для новой песни о материнстве"
-• "Хочу создать курс по женской энергии"
-• "Планирую ретрит в горах"
+📝 **Creating projects**  
+Just tell me about your idea, for example:  
+• “I have an idea for a new song about motherhood”  
+• “I want to create a course on feminine energy”  
+• “I'm planning a retreat in the mountains”
 
-📊 **Обновление статуса:**
-• "Начала работать над песней о луне"
-• "Приостанавливаю работу над курсом"
-• "Завершила запись альбома"
+📊 **Updating status**  
+• “Started working on the moon song”  
+• “Pausing work on the course”  
+• “Finished recording the album”
 
-📋 **Просмотр проектов:**
-• "Что у меня в работе?"
-• "Покажи все мои песни"
-• "Какие курсы я планирую?"
+📋 **Viewing projects**  
+• “What am I working on?”  
+• “Show me all my songs”  
+• “What courses am I planning?”
 
-🎯 **Типы проектов:**
-• Песни (Song)
-• Книги (Book)
-• Курсы (Course)
-• Ретриты (Retreat)
-• Мастер-классы (Workshop)
-• Альбомы (Album)
+🎯 **Project types**  
+• Songs (Song)  
+• Books (Book)  
+• Courses (Course)  
+• Retreats (Retreat)  
+• Workshops (Workshop)  
+• Albums (Album)
 
-💫 Пиши естественно - я пойму твои намерения и организую всё сама!
+💫 Just write naturally—I’ll infer your intentions and organise everything myself!
         """
         await update.message.reply_text(help_message)
-        
+
     async def projects_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Обработчик команды /projects - показать все проекты"""
+        """Handler for /projects command — show all projects"""
         try:
             projects = await self.notion.get_all_projects()
-            
+
             if not projects:
-                await update.message.reply_text("У тебя пока нет сохранённых проектов. Расскажи мне о своих идеях! ✨")
+                await update.message.reply_text("You don’t have any saved projects yet. Share your ideas with me! ✨")
                 return
-                
-            message = "🌟 **Все твои проекты:**\n\n"
-            
-            # Группируем проекты по типам
-            projects_by_type = {}
+
+            message = "🌟 **All your projects:**\n\n"
+
+            # Group projects by type
+            projects_by_type: Dict[str, list] = {}
             for project in projects:
-                project_type = project.get('type', 'Другое')
-                if project_type not in projects_by_type:
-                    projects_by_type[project_type] = []
-                projects_by_type[project_type].append(project)
-            
-            # Формируем сообщение
+                project_type = project.get('type', 'Other')
+                projects_by_type.setdefault(project_type, []).append(project)
+
+            # Build the message
             for project_type, type_projects in projects_by_type.items():
                 message += f"**{project_type}:**\n"
                 for project in type_projects:
-                    name = project.get('name', 'Без названия')
-                    status = project.get('status', 'Неизвестно')
+                    name = project.get('name', 'Untitled')
+                    status = project.get('status', 'Unknown')
                     status_emoji = self._get_status_emoji(status)
-                    message += f"  {status_emoji} {name} - {status}\n"
+                    message += f"  {status_emoji} {name} – {status}\n"
                 message += "\n"
-                
+
             await update.message.reply_text(message, parse_mode='Markdown')
-            
+
         except Exception as e:
-            logger.error(f"Ошибка при получении проектов: {e}")
-            await update.message.reply_text("Произошла ошибка при получении списка проектов. Попробуй позже.")
-            
+            logger.error(f"Error getting projects: {e}")
+            await update.message.reply_text("An error occurred while retrieving the project list. Please try again later.")
+
     async def active_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Обработчик команды /active - показать активные проекты"""
+        """Handler for /active command — show active projects"""
         try:
             projects = await self.notion.get_projects_by_status("In Progress")
-            
+
             if not projects:
-                await update.message.reply_text("У тебя нет активных проектов. Время начать что-то новое! 🚀")
+                await update.message.reply_text("You have no active projects. Time to start something new! 🚀")
                 return
-                
-            message = "🔥 **Твои активные проекты:**\n\n"
-            
+
+            message = "🔥 **Your active projects:**\n\n"
             for project in projects:
-                name = project.get('name', 'Без названия')
-                project_type = project.get('type', 'Проект')
+                name = project.get('name', 'Untitled')
+                project_type = project.get('type', 'Project')
                 date = project.get('date', '')
                 tags = project.get('tags', [])
-                
+
                 message += f"🎯 **{name}** ({project_type})\n"
                 if date:
                     message += f"   📅 {date}\n"
                 if tags:
                     message += f"   🏷️ {', '.join(tags)}\n"
                 message += "\n"
-                
+
             await update.message.reply_text(message, parse_mode='Markdown')
-            
+
         except Exception as e:
-            logger.error(f"Ошибка при получении активных проектов: {e}")
-            await update.message.reply_text("Произошла ошибка при получении активных проектов. Попробуй позже.")
-    
+            logger.error(f"Error getting active projects: {e}")
+            await update.message.reply_text("An error occurred while getting active projects. Please try again later.")
+
     async def handle_voice_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Обработчик голосовых сообщений"""
+        """Handler for voice messages"""
         try:
-            # Отправляем сообщение о том, что обрабатываем голосовое сообщение
-            processing_msg = await update.message.reply_text("🎤 Слушаю твоё сообщение...")
-            
-            # Получаем файл голосового сообщения
+            processing_msg = await update.message.reply_text("🎤 Listening to your message…")
+
+            # Retrieve voice file
             voice_file = await update.message.voice.get_file()
-            
-            # Скачиваем файл
+
+            # Save locally
             voice_path = f"/tmp/voice_{update.message.message_id}.ogg"
             await voice_file.download_to_drive(voice_path)
-            
-            # Транскрибируем голосовое сообщение
+
+            # Transcribe the voice message
             transcription = await self.openai.transcribe_audio(voice_path)
-            
-            # Удаляем временный файл
+
+            # Remove temporary file
             os.remove(voice_path)
-            
+
             if not transcription:
-                await processing_msg.edit_text("Не удалось распознать голосовое сообщение. Попробуй ещё раз.")
+                await processing_msg.edit_text("Could not recognise the voice message. Please try again.")
                 return
-            
-            # Обрабатываем транскрибированный текст
-            await processing_msg.edit_text(f"📝 Я услышала: \"{transcription}\"\n\nОбрабатываю...")
-            await self._process_text_message(update, context, transcription, processing_msg)
-            
+
+            # Process the transcribed text
+            await processing_msg.edit_text(f"📝 I heard: “{transcription}”\n\nProcessing…")
+            await self._process_text_message(update, context, transcription, processing_msg,
+                                             original_transcription=transcription)
+
         except Exception as e:
-            logger.error(f"Ошибка при обработке голосового сообщения: {e}")
-            await update.message.reply_text("Произошла ошибка при обработке голосового сообщения. Попробуй написать текстом.")
-    
+            logger.error(f"Error processing voice message: {e}")
+            await update.message.reply_text("An error occurred while processing the voice message. Please try typing instead.")
+
     async def handle_text_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Обработчик текстовых сообщений"""
+        """Handler for text messages"""
         try:
-            # Отправляем сообщение о том, что обрабатываем запрос
-            processing_msg = await update.message.reply_text("💭 Обрабатываю твой запрос...")
-            
+            processing_msg = await update.message.reply_text("💭 Processing your request…")
+
             text = update.message.text
             await self._process_text_message(update, context, text, processing_msg)
-            
+
         except Exception as e:
-            logger.error(f"Ошибка при обработке текстового сообщения: {e}")
-            await update.message.reply_text("Произошла ошибка при обработке сообщения. Попробуй ещё раз.")
-    
-    async def _process_text_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE, 
-                                  text: str, processing_msg: Message) -> None:
-        """Внутренний метод для обработки текстовых сообщений"""
+            logger.error(f"Error processing text message: {e}")
+            await update.message.reply_text("An error occurred while processing the message. Please try again.")
+
+    async def _process_text_message(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+        text: str,
+        processing_msg: Message,
+        original_transcription: str | None = None
+    ) -> None:
+        """Internal method for processing text messages"""
         try:
-            # Анализируем намерение пользователя с помощью OpenAI
             intent_analysis = await self.openai.analyze_intent(text)
-            
+
             if not intent_analysis:
-                await processing_msg.edit_text("Не удалось понять твой запрос. Попробуй переформулировать.")
+                await processing_msg.edit_text("I couldn’t understand that. Could you rephrase?")
                 return
-            
+
             action = intent_analysis.get('action')
-            
+
             if action == 'create_project':
-                await self._handle_create_project(intent_analysis, processing_msg)
-            elif action == 'update_project':
+                await self._handle_create_project(intent_analysis, processing_msg, original_transcription)
+            elif action == 'update_status':
+                await self._handle_update_status(intent_analysis, processing_msg)
+            elif action == 'add_notes':
+                await self._handle_add_notes(intent_analysis, processing_msg, original_transcription)
+            elif action == 'update_project_info':
+                await self._handle_update_project_info(intent_analysis, processing_msg)
+            elif action == 'archive_project':
+                await self._handle_archive_project(intent_analysis, processing_msg)
+            elif action == 'update_project':            # Backward compatibility
                 await self._handle_update_project(intent_analysis, processing_msg)
             elif action == 'query_projects':
                 await self._handle_query_projects(intent_analysis, processing_msg)
             elif action == 'general_chat':
                 await self._handle_general_chat(intent_analysis, processing_msg)
             else:
-                await processing_msg.edit_text("Я поняла твоё сообщение, но не знаю, как на него ответить. Попробуй быть более конкретной.")
-                
+                await processing_msg.edit_text(
+                    "I understand the message, but I’m not sure how to respond. Could you be more specific?"
+                )
+
         except Exception as e:
-            logger.error(f"Ошибка при обработке сообщения: {e}")
-            await processing_msg.edit_text("Произошла ошибка при обработке. Попробуй ещё раз.")
-    
-    async def _handle_create_project(self, intent_analysis: Dict[str, Any], processing_msg: Message) -> None:
-        """Обработка создания нового проекта"""
+            logger.error(f"Error processing message: {e}")
+            await processing_msg.edit_text("An error occurred during processing. Please try again.")
+
+    # ---------- Handlers for specific actions ----------
+
+    async def _handle_create_project(
+        self,
+        intent_analysis: Dict[str, Any],
+        processing_msg: Message,
+        original_transcription: str | None = None
+    ) -> None:
+        """Handle creating a new project"""
         try:
             project_data = intent_analysis.get('project_data', {})
-            
-            # Создаём проект в Notion
+
+            # Attach original transcription, if any
+            if original_transcription:
+                project_data['original_transcription'] = original_transcription
+
+            # Rename 'notes' → 'processed_notes' for the new schema
+            if 'notes' in project_data:
+                project_data['processed_notes'] = project_data.pop('notes')
+
+            # Create project in Notion
             created_project = await self.notion.create_project(project_data)
-            
+
             if created_project:
-                name = project_data.get('name', 'Новый проект')
-                project_type = project_data.get('type', 'Проект')
-                
+                name = project_data.get('name', 'New Project')
+                project_type = project_data.get('type', 'Project')
+
                 response = await self.openai.generate_response(
-                    f"Проект '{name}' типа '{project_type}' успешно создан",
+                    f"Project '{name}' of type '{project_type}' created successfully",
                     "create_success"
                 )
-                
                 await processing_msg.edit_text(f"✨ {response}")
             else:
-                await processing_msg.edit_text("Не удалось создать проект. Попробуй ещё раз.")
-                
+                await processing_msg.edit_text("Could not create the project. Please try again.")
+
         except Exception as e:
-            logger.error(f"Ошибка при создании проекта: {e}")
-            await processing_msg.edit_text("Произошла ошибка при создании проекта.")
-    
+            logger.error(f"Error creating project: {e}")
+            await processing_msg.edit_text("An error occurred while creating the project.")
+
     async def _handle_update_project(self, intent_analysis: Dict[str, Any], processing_msg: Message) -> None:
-        """Обработка обновления существующего проекта"""
+        """Handle updating an existing project (legacy path)"""
         try:
             project_name = intent_analysis.get('project_name')
             new_status = intent_analysis.get('new_status')
-            
+
             if not project_name or not new_status:
-                await processing_msg.edit_text("Не удалось определить, какой проект и как обновить. Уточни, пожалуйста.")
+                await processing_msg.edit_text("Which project should be updated? Please clarify.")
                 return
-            
-            # Обновляем проект в Notion
+
             updated = await self.notion.update_project_status(project_name, new_status)
-            
+
             if updated:
                 response = await self.openai.generate_response(
-                    f"Статус проекта '{project_name}' изменён на '{new_status}'",
+                    f"Project '{project_name}' status changed to '{new_status}'",
                     "update_success"
                 )
                 await processing_msg.edit_text(f"🔄 {response}")
             else:
-                await processing_msg.edit_text(f"Не удалось найти проект '{project_name}' или обновить его статус.")
-                
+                await processing_msg.edit_text(f"Could not find project '{project_name}' or update its status.")
+
         except Exception as e:
-            logger.error(f"Ошибка при обновлении проекта: {e}")
-            await processing_msg.edit_text("Произошла ошибка при обновлении проекта.")
-    
+            logger.error(f"Error updating project: {e}")
+            await processing_msg.edit_text("An error occurred while updating the project.")
+
     async def _handle_query_projects(self, intent_analysis: Dict[str, Any], processing_msg: Message) -> None:
-        """Обработка запросов информации о проектах"""
+        """Handle project information queries"""
         try:
             query_type = intent_analysis.get('query_type')
             filters = intent_analysis.get('filters', {})
-            
-            projects = []
-            
+
+            projects: list[Dict[str, Any]] = []
+
             if query_type == 'by_status':
                 status = filters.get('status')
                 projects = await self.notion.get_projects_by_status(status)
@@ -298,64 +322,191 @@ class PerukuaBot:
                 projects = await self.notion.get_projects_by_type(project_type)
             else:
                 projects = await self.notion.get_all_projects()
-            
+
             if not projects:
-                await processing_msg.edit_text("По твоему запросу проектов не найдено.")
+                await processing_msg.edit_text("No projects found matching your query.")
                 return
-            
-            # Формируем ответ с помощью OpenAI
+
             response = await self.openai.format_projects_response(projects, query_type)
             await processing_msg.edit_text(response, parse_mode='Markdown')
-            
+
         except Exception as e:
-            logger.error(f"Ошибка при запросе проектов: {e}")
-            await processing_msg.edit_text("Произошла ошибка при поиске проектов.")
-    
+            logger.error(f"Error querying projects: {e}")
+            await processing_msg.edit_text("An error occurred while searching for projects.")
+
     async def _handle_general_chat(self, intent_analysis: Dict[str, Any], processing_msg: Message) -> None:
-        """Обработка общих сообщений"""
+        """Handle general (non-actionable) messages"""
         try:
-            message = intent_analysis.get('message', '')
-            response = await self.openai.generate_response(message, "general_chat")
+            original_message = intent_analysis.get('message', '')
+            response = await self.openai.generate_response(original_message, "general_chat")
             await processing_msg.edit_text(response)
-            
+
         except Exception as e:
-            logger.error(f"Ошибка при обработке общего сообщения: {e}")
-            await processing_msg.edit_text("Произошла ошибка при обработке сообщения.")
-    
-    def _get_status_emoji(self, status: str) -> str:
-        """Получить эмодзи для статуса проекта"""
-        emoji_map = {
+            logger.error(f"Error handling general chat: {e}")
+            await processing_msg.edit_text("An error occurred while processing the message.")
+
+    async def _handle_update_status(self, intent_analysis: Dict[str, Any], processing_msg: Message) -> None:
+        """Handle project status updates"""
+        try:
+            project_identifier = intent_analysis.get('project_identifier', '')
+            new_status = intent_analysis.get('new_status', '')
+            reason = intent_analysis.get('reason', '')
+
+            if not project_identifier or not new_status:
+                await processing_msg.edit_text("Project or new status not specified.")
+                return
+
+            project = await self.notion.find_project_by_keywords(project_identifier)
+            if not project:
+                await processing_msg.edit_text(f"Project '{project_identifier}' not found.")
+                return
+
+            success = await self.notion.update_project_status(project['name'], new_status)
+
+            if success:
+                emoji = self._get_status_emoji(new_status)
+                response = f"{emoji} Project '{project['name']}' status changed to '{new_status}'"
+                if reason:
+                    response += f"\nReason: {reason}"
+                await processing_msg.edit_text(response)
+            else:
+                await processing_msg.edit_text(f"Could not update project '{project['name']}'.")
+
+        except Exception as e:
+            logger.error(f"Error updating status: {e}")
+            await processing_msg.edit_text("An error occurred while updating the status.")
+
+    async def _handle_add_notes(
+        self,
+        intent_analysis: Dict[str, Any],
+        processing_msg: Message,
+        original_transcription: str | None = None
+    ) -> None:
+        """Handle adding notes to a project"""
+        try:
+            project_identifier = intent_analysis.get('project_identifier', '')
+            additional_notes = intent_analysis.get('additional_notes', '')
+            note_type = intent_analysis.get('note_type', 'update')
+
+            if not project_identifier or not additional_notes:
+                await processing_msg.edit_text("Project or notes not specified.")
+                return
+
+            project = await self.notion.find_project_by_keywords(project_identifier)
+            if not project:
+                await processing_msg.edit_text(f"Project '{project_identifier}' not found.")
+                return
+
+            success = await self.notion.add_notes_to_project(project_identifier, additional_notes, note_type)
+
+            if success:
+                await processing_msg.edit_text(f"📝 Notes added to project '{project['name']}'")
+            else:
+                await processing_msg.edit_text(f"Could not add notes to project '{project['name']}'.")
+
+        except Exception as e:
+            logger.error(f"Error adding notes: {e}")
+            await processing_msg.edit_text("An error occurred while adding notes.")
+
+    async def _handle_update_project_info(self, intent_analysis: Dict[str, Any], processing_msg: Message) -> None:
+        """Handle updating project metadata"""
+        try:
+            project_identifier = intent_analysis.get('project_identifier', '')
+            updates = intent_analysis.get('updates', {})
+
+            if not project_identifier or not updates:
+                await processing_msg.edit_text("Project or changes not specified.")
+                return
+
+            project = await self.notion.find_project_by_keywords(project_identifier)
+            if not project:
+                await processing_msg.edit_text(f"Project '{project_identifier}' not found.")
+                return
+
+            success = await self.notion.update_project_info(project_identifier, updates)
+
+            if success:
+                changes: list[str] = []
+                if 'name' in updates:
+                    changes.append(f"name → '{updates['name']}'")
+                if 'type' in updates:
+                    changes.append(f"type → '{updates['type']}'")
+                if 'tags' in updates:
+                    changes.append(f"tags → {updates['tags']}")
+
+                response = f"✏️ Project '{project['name']}' updated:\n"
+                response += "\n".join(f"• {ch}" for ch in changes)
+                await processing_msg.edit_text(response)
+            else:
+                await processing_msg.edit_text(f"Could not update project '{project['name']}'.")
+
+        except Exception as e:
+            logger.error(f"Error updating project info: {e}")
+            await processing_msg.edit_text("An error occurred while updating project information.")
+
+    async def _handle_archive_project(self, intent_analysis: Dict[str, Any], processing_msg: Message) -> None:
+        """Handle archiving a project"""
+        try:
+            project_identifier = intent_analysis.get('project_identifier', '')
+            reason = intent_analysis.get('reason', '')
+
+            if not project_identifier:
+                await processing_msg.edit_text("Project to archive not specified.")
+                return
+
+            project = await self.notion.find_project_by_keywords(project_identifier)
+            if not project:
+                await processing_msg.edit_text(f"Project '{project_identifier}' not found.")
+                return
+
+            success = await self.notion.archive_project(project_identifier, reason)
+
+            if success:
+                response = f"📦 Project '{project['name']}' archived"
+                if reason:
+                    response += f"\nReason: {reason}"
+                await processing_msg.edit_text(response)
+            else:
+                await processing_msg.edit_text(f"Could not archive project '{project['name']}'.")
+
+        except Exception as e:
+            logger.error(f"Error archiving project: {e}")
+            await processing_msg.edit_text("An error occurred while archiving the project.")
+
+    # ---------- Utility ----------
+
+    @staticmethod
+    def _get_status_emoji(status: str) -> str:
+        """Return an emoji for the given project status"""
+        return {
             'Idea': '💡',
             'In Progress': '🔥',
             'Paused': '⏸️',
             'Completed': '✅',
             'Released': '🚀',
             'Archived': '📦'
-        }
-        return emoji_map.get(status, '📋')
+        }.get(status, '📋')
 
-def main():
-    """Основная функция запуска бота"""
-    # Создаём экземпляр бота
-    bot = PerukuaBot()
-    
-    # Создаём приложение Telegram
+# ---------- Entry point ----------
+
+def main() -> None:
+    """Start the bot"""
+    bot = PeruquoisBot()
+
     application = Application.builder().token(bot.config.TELEGRAM_TOKEN).build()
-    
-    # Добавляем обработчики команд
+
+    # Command handlers
     application.add_handler(CommandHandler("start", bot.start_command))
     application.add_handler(CommandHandler("help", bot.help_command))
     application.add_handler(CommandHandler("projects", bot.projects_command))
     application.add_handler(CommandHandler("active", bot.active_command))
-    
-    # Добавляем обработчики сообщений
+
+    # Message handlers
     application.add_handler(MessageHandler(filters.VOICE, bot.handle_voice_message))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, bot.handle_text_message))
-    
-    # Запускаем бота
-    logger.info("Запуск бота Перукуа...")
+
+    logger.info("Starting Peruquois bot…")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
     main()
-
