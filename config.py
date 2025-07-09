@@ -1,22 +1,17 @@
 """
-Конфигурация для Telegram бота Перукуа
-Управляет всеми настройками и переменными окружения
+Configuration for Peruquois Telegram Bot
+Handles all settings and environment variables
 """
 
 import os
 from typing import Optional
-from dotenv import load_dotenv
-
 
 class Config:
-    """Класс конфигурации для бота"""
+    """Configuration class for the bot"""
     
     def __init__(self):
-        """Инициализация конфигурации с проверкой переменных окружения"""
-
-        # Загружаем переменные из .env файла
-        load_dotenv()
-
+        """Initialize configuration and check environment variables"""
+        
         # Telegram Bot Token
         self.TELEGRAM_TOKEN = self._get_env_var("TELEGRAM_BOT_TOKEN")
         
@@ -29,30 +24,30 @@ class Config:
         # Notion Database ID
         self.NOTION_DATABASE_ID = self._get_env_var("NOTION_DATABASE_ID")
         
-        # Дополнительные настройки
+        # Additional settings
         self.DEBUG = os.getenv("DEBUG", "False").lower() == "true"
         self.LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
         
-        # Настройки OpenAI
+        # OpenAI settings
         self.OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4")
         self.OPENAI_MAX_TOKENS = int(os.getenv("OPENAI_MAX_TOKENS", "1000"))
         self.OPENAI_TEMPERATURE = float(os.getenv("OPENAI_TEMPERATURE", "0.7"))
         
-        # Настройки Telegram
+        # Telegram settings
         self.TELEGRAM_TIMEOUT = int(os.getenv("TELEGRAM_TIMEOUT", "30"))
         
-        # Проверяем, что все обязательные переменные установлены
+        # Validate required environment variables
         self._validate_config()
     
     def _get_env_var(self, var_name: str) -> str:
-        """Получить переменную окружения с проверкой"""
+        """Get environment variable with validation"""
         value = os.getenv(var_name)
         if not value:
-            raise ValueError(f"Переменная окружения {var_name} не установлена")
+            raise ValueError(f"Environment variable {var_name} is not set")
         return value
     
     def _validate_config(self) -> None:
-        """Проверить корректность конфигурации"""
+        """Check configuration validity"""
         required_vars = [
             "TELEGRAM_TOKEN",
             "OPENAI_API_KEY", 
@@ -67,12 +62,12 @@ class Config:
         
         if missing_vars:
             raise ValueError(
-                f"Отсутствуют обязательные переменные окружения: {', '.join(missing_vars)}\n"
-                f"Создайте файл .env или установите переменные окружения."
+                f"Missing required environment variables: {', '.join(missing_vars)}\n"
+                f"Please create a .env file or set the environment variables manually."
             )
     
     def get_notion_headers(self) -> dict:
-        """Получить заголовки для Notion API"""
+        """Get headers for Notion API"""
         return {
             "Authorization": f"Bearer {self.NOTION_TOKEN}",
             "Content-Type": "application/json",
@@ -80,22 +75,21 @@ class Config:
         }
     
     def get_openai_headers(self) -> dict:
-        """Получить заголовки для OpenAI API"""
+        """Get headers for OpenAI API"""
         return {
             "Authorization": f"Bearer {self.OPENAI_API_KEY}",
             "Content-Type": "application/json"
         }
     
     def __str__(self) -> str:
-        """Строковое представление конфигурации (без секретных данных)"""
+        """String representation of configuration (without secrets)"""
         return f"""
-Конфигурация бота Перукуа:
-- Debug режим: {self.DEBUG}
-- Уровень логирования: {self.LOG_LEVEL}
-- OpenAI модель: {self.OPENAI_MODEL}
+Peruquois Bot Configuration:
+- Debug mode: {self.DEBUG}
+- Logging level: {self.LOG_LEVEL}
+- OpenAI model: {self.OPENAI_MODEL}
 - OpenAI max tokens: {self.OPENAI_MAX_TOKENS}
 - OpenAI temperature: {self.OPENAI_TEMPERATURE}
 - Telegram timeout: {self.TELEGRAM_TIMEOUT}
 - Notion Database ID: {self.NOTION_DATABASE_ID[:8]}...
         """.strip()
-
