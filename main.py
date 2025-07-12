@@ -209,8 +209,8 @@ Just tell me about your idea, for example:
     ) -> None:
         """Internal method for processing text messages"""
         try:
-            intent_analysis = await self.openai.analyze_intent(text)
-
+            # Analyze intent with enhanced column optimization
+            intent_analysis = await self.openai.enhanced_intent_analysis(text)
             if not intent_analysis:
                 await processing_msg.edit_text("I couldn’t understand that. Could you rephrase?")
                 return
