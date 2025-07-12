@@ -739,3 +739,4 @@ class NotionAPI:
         except Exception as e:
             logger.error(f"Error creating project with optimal columns: {e}")
             return None
+
