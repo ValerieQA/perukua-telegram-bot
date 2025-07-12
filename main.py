@@ -608,14 +608,21 @@ Just tell me about your idea, for example:
                     await query.edit_message_text(f"Adding notes to '{project_name}'...")
                     
                     # Prepare data for adding notes
-                    additional_notes = intent_analysis.get('project_data', {}).get('notes', '')
+                    project_data = intent_analysis.get('project_data', {})
+                    additional_notes = project_data.get('notes', '')
                     
                     # Create update data
                     update_data = {}
                     if original_transcription:
                         update_data['original_audio'] = original_transcription
+                    
+                    # Always add processed notes if we have project_data
                     if additional_notes:
                         update_data['additional_notes'] = additional_notes
+                        update_data['note_type'] = 'update'
+                    elif original_transcription:
+                        # If no processed notes but we have transcription, create a basic note
+                        update_data['additional_notes'] = "Audio transcription added to project"
                         update_data['note_type'] = 'update'
                     
                     # Add notes to the selected project
