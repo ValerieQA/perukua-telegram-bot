@@ -254,13 +254,12 @@ Just tell me about your idea, for example:
         try:
             project_data = intent_analysis.get('project_data', {})
 
-            # Attach original transcription, if any
+            # Attach original transcription to Original Audio field
             if original_transcription:
-                project_data['original_transcription'] = original_transcription
+                project_data['original_audio'] = original_transcription
 
-            # Rename 'notes' → 'processed_notes' for the new schema
-            if 'notes' in project_data:
-                project_data['processed_notes'] = project_data.pop('notes')
+            # Keep processed notes in the notes field
+            # (notes field will be saved to "Processed Notes" column)
 
             # Create project in Notion
             created_project = await self.notion.create_project(project_data)
@@ -397,7 +396,17 @@ Just tell me about your idea, for example:
                 await processing_msg.edit_text(f"Project '{project_identifier}' not found.")
                 return
 
-            success = await self.notion.add_notes_to_project(project_identifier, additional_notes, note_type)
+            # Add original transcription to Original Audio if available
+            update_data = {}
+            if original_transcription:
+                update_data['original_audio'] = original_transcription
+            
+            # Add processed notes
+            if additional_notes:
+                update_data['additional_notes'] = additional_notes
+                update_data['note_type'] = note_type
+
+            success = await self.notion.add_notes_to_project(project_identifier, update_data)
 
             if success:
                 await processing_msg.edit_text(f"📝 Notes added to project '{project['name']}'")
