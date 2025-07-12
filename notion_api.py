@@ -205,10 +205,15 @@ class NotionAPI:
                 current_original_audio = project.get("original_audio", "")
                 new_audio = update_data['original_audio']
                 
+                # Add timestamp to new audio
+                from datetime import datetime
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+                timestamped_audio = f"[{timestamp}] {new_audio}"
+                
                 if current_original_audio:
-                    updated_original_audio = f"{current_original_audio}\n\n--- New Audio ---\n{new_audio}"
+                    updated_original_audio = f"{current_original_audio}\n\n--- New Audio ---\n{timestamped_audio}"
                 else:
-                    updated_original_audio = new_audio
+                    updated_original_audio = timestamped_audio
                 
                 properties["Original Audio"] = {
                     "rich_text": [{"text": {"content": updated_original_audio}}]
@@ -361,10 +366,13 @@ class NotionAPI:
                 "rich_text": [{"text": {"content": project_data["notes"]}}]
             }
         
-        # Original Audio - raw transcriptions
+        # Original Audio - raw transcriptions with timestamp
         if "original_audio" in project_data:
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+            timestamped_audio = f"[{timestamp}] {project_data['original_audio']}"
             properties["Original Audio"] = {
-                "rich_text": [{"text": {"content": project_data["original_audio"]}}]
+                "rich_text": [{"text": {"content": timestamped_audio}}]
             }
         
         # Tags
