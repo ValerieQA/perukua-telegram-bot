@@ -331,10 +331,16 @@ class NotionAPI:
                 "select": {"name": project_data["status"]}
             }
         
-        # Notes - use existing Notes column
+        # Processed Notes - structured notes
         if "notes" in project_data:
-            properties["Notes"] = {
+            properties["Processed Notes"] = {
                 "rich_text": [{"text": {"content": project_data["notes"]}}]
+            }
+        
+        # Original Audio - raw transcriptions
+        if "original_audio" in project_data:
+            properties["Original Audio"] = {
+                "rich_text": [{"text": {"content": project_data["original_audio"]}}]
             }
         
         # Tags
@@ -356,7 +362,8 @@ class NotionAPI:
                 "name": self._extract_title(properties.get("Name", {})),
                 "type": self._extract_select(properties.get("Type", {})),
                 "status": self._extract_select(properties.get("Status", {})),
-                "notes": self._extract_rich_text(properties.get("Notes", {})),
+                "notes": self._extract_rich_text(properties.get("Processed Notes", {})),
+                "original_audio": self._extract_rich_text(properties.get("Original Audio", {})),
                 "tags": self._extract_multi_select(properties.get("Tags", {})),
                 "created_time": page.get("created_time"),
                 "last_edited_time": page.get("last_edited_time")
