@@ -10,11 +10,12 @@ import asyncio
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-from telegram import Update, Message
+from telegram import Update, Message, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
+    CallbackQueryHandler,
     filters,
     ContextTypes
 )
@@ -219,6 +220,8 @@ Just tell me about your idea, for example:
 
             if action == 'create_project':
                 await self._handle_create_project(intent_analysis, processing_msg, original_transcription)
+            elif action == 'clarify_intent':
+                await self._handle_clarify_intent(intent_analysis, processing_msg, original_transcription)
             elif action == 'update_status':
                 await self._handle_update_status(intent_analysis, processing_msg)
             elif action == 'add_notes':
@@ -482,6 +485,155 @@ Just tell me about your idea, for example:
             logger.error(f"Error archiving project: {e}")
             await processing_msg.edit_text("An error occurred while archiving the project.")
 
+    async def _handle_clarify_intent(
+        self,
+        intent_analysis: Dict[str, Any],
+        processing_msg: Message,
+        original_transcription: str | None = None
+    ) -> None:
+        """Handle intent clarification by showing similar projects"""
+        try:
+            search_keywords = intent_analysis.get('search_keywords', '')
+            project_data = intent_analysis.get('project_data', {})
+            
+            if not search_keywords:
+                # Fallback to creating new project if no keywords
+                await self._handle_create_project(intent_analysis, processing_msg, original_transcription)
+                return
+            
+            # Search for similar projects
+            similar_projects = await self.notion.find_similar_projects(search_keywords, limit=5)
+            
+            if not similar_projects:
+                # No similar projects found, create new one
+                await self._handle_create_project(intent_analysis, processing_msg, original_transcription)
+                return
+            
+            # Store context for callback handling
+            context_data = {
+                'intent_analysis': intent_analysis,
+                'original_transcription': original_transcription,
+                'similar_projects': similar_projects
+            }
+            
+            # Create inline keyboard with options
+            keyboard = []
+            
+            # Add buttons for similar projects (max 5)
+            for i, project in enumerate(similar_projects[:5]):
+                project_name = project.get('name', 'Untitled')
+                project_type = project.get('type', 'Project')
+                button_text = f"{i+1}. {project_name} ({project_type})"
+                callback_data = f"select_project_{i}"
+                keyboard.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
+            
+            # Add "Create New Project" and "Cancel" options
+            keyboard.append([InlineKeyboardButton("🆕 Create New Project", callback_data="create_new")])
+            keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data="cancel")])
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Store context in user_data for callback handling
+            user_id = processing_msg.chat.id
+            if not hasattr(processing_msg, 'bot'):
+                # This is a workaround - we'll store in a class variable
+                if not hasattr(self, '_pending_contexts'):
+                    self._pending_contexts = {}
+                self._pending_contexts[user_id] = context_data
+            
+            # Format message with similar projects
+            message_text = "🤔 I hear you want to make changes. I found some similar projects:\n\n"
+            
+            for i, project in enumerate(similar_projects[:5]):
+                name = project.get('name', 'Untitled')
+                project_type = project.get('type', 'Project')
+                status = project.get('status', 'Unknown')
+                
+                # Add emoji for project type
+                type_emojis = {
+                    'Song': '🎵', 'Book': '📖', 'Course': '🎓',
+                    'Retreat': '🏔️', 'Workshop': '🛠️', 'Album': '💿', 'Project': '📋'
+                }
+                emoji = type_emojis.get(project_type, '📋')
+                
+                message_text += f"{i+1}️⃣ {emoji} **{name}**\n"
+                message_text += f"    Type: {project_type} | Status: {status}\n\n"
+            
+            message_text += "Choose an option below:"
+            
+            await processing_msg.edit_text(message_text, reply_markup=reply_markup, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error handling clarify intent: {e}")
+            await processing_msg.edit_text("An error occurred while searching for similar projects.")
+
+    async def handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle callback queries from inline keyboards"""
+        try:
+            query = update.callback_query
+            await query.answer()  # Acknowledge the callback query
+            
+            user_id = query.message.chat.id
+            callback_data = query.data
+            
+            # Retrieve stored context
+            if not hasattr(self, '_pending_contexts') or user_id not in self._pending_contexts:
+                await query.edit_message_text("Session expired. Please try again.")
+                return
+            
+            context_data = self._pending_contexts[user_id]
+            intent_analysis = context_data['intent_analysis']
+            original_transcription = context_data['original_transcription']
+            similar_projects = context_data['similar_projects']
+            
+            if callback_data == "cancel":
+                await query.edit_message_text("Operation cancelled.")
+                del self._pending_contexts[user_id]
+                return
+            
+            elif callback_data == "create_new":
+                # Create new project
+                await query.edit_message_text("Creating new project...")
+                await self._handle_create_project(intent_analysis, query.message, original_transcription)
+                del self._pending_contexts[user_id]
+                return
+            
+            elif callback_data.startswith("select_project_"):
+                # Add to existing project
+                project_index = int(callback_data.split("_")[-1])
+                if project_index < len(similar_projects):
+                    selected_project = similar_projects[project_index]
+                    project_name = selected_project.get('name', 'Untitled')
+                    
+                    await query.edit_message_text(f"Adding notes to '{project_name}'...")
+                    
+                    # Prepare data for adding notes
+                    additional_notes = intent_analysis.get('project_data', {}).get('notes', '')
+                    
+                    # Create update data
+                    update_data = {}
+                    if original_transcription:
+                        update_data['original_audio'] = original_transcription
+                    if additional_notes:
+                        update_data['additional_notes'] = additional_notes
+                        update_data['note_type'] = 'update'
+                    
+                    # Add notes to the selected project
+                    success = await self.notion.add_notes_to_project(project_name, update_data)
+                    
+                    if success:
+                        await query.edit_message_text(f"✅ Notes added to '{project_name}' successfully!")
+                    else:
+                        await query.edit_message_text(f"❌ Failed to add notes to '{project_name}'.")
+                    
+                    del self._pending_contexts[user_id]
+                else:
+                    await query.edit_message_text("Invalid selection. Please try again.")
+            
+        except Exception as e:
+            logger.error(f"Error handling callback query: {e}")
+            await query.edit_message_text("An error occurred while processing your selection.")
+
     # ---------- Utility ----------
 
     @staticmethod
@@ -513,6 +665,9 @@ def main() -> None:
     # Message handlers
     application.add_handler(MessageHandler(filters.VOICE, bot.handle_voice_message))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, bot.handle_text_message))
+    
+    # Callback query handler for inline buttons
+    application.add_handler(CallbackQueryHandler(bot.handle_callback_query))
 
     logger.info("Starting Peruquois bot…")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
