@@ -188,8 +188,8 @@ class NotionAPI:
             logger.error(f"Error finding project by keywords: {e}")
             return None
 
-    async def add_notes_to_project(self, project_identifier: str, additional_notes: str, note_type: str = "update") -> bool:
-        """Add notes to existing project"""
+    async def add_notes_to_project(self, project_identifier: str, update_data: Dict[str, Any]) -> bool:
+        """Add notes to existing project with support for both Original Audio and Processed Notes"""
         try:
             # Find project by keywords
             project = await self.find_project_by_keywords(project_identifier)
@@ -197,26 +197,53 @@ class NotionAPI:
                 logger.error(f"Project not found: {project_identifier}")
                 return False
             
-            # Get current notes
-            current_notes = project.get("notes", "")
+            # Prepare update properties
+            properties = {}
             
-            # Append new notes
-            if current_notes:
-                updated_notes = f"{current_notes}\n\n{additional_notes}"
-            else:
-                updated_notes = additional_notes
+            # Handle Original Audio updates
+            if 'original_audio' in update_data:
+                current_original_audio = project.get("original_audio", "")
+                new_audio = update_data['original_audio']
+                
+                if current_original_audio:
+                    updated_original_audio = f"{current_original_audio}\n\n--- New Audio ---\n{new_audio}"
+                else:
+                    updated_original_audio = new_audio
+                
+                properties["Original Audio"] = {
+                    "rich_text": [{"text": {"content": updated_original_audio}}]
+                }
+            
+            # Handle Processed Notes updates
+            if 'additional_notes' in update_data:
+                current_notes = project.get("notes", "")
+                additional_notes = update_data['additional_notes']
+                note_type = update_data.get('note_type', 'update')
+                
+                # Format the new note with timestamp and type
+                from datetime import datetime
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+                formatted_note = f"[{timestamp}] {note_type.title()}: {additional_notes}"
+                
+                if current_notes:
+                    updated_notes = f"{current_notes}\n\n{formatted_note}"
+                else:
+                    updated_notes = formatted_note
+                
+                properties["Processed Notes"] = {
+                    "rich_text": [{"text": {"content": updated_notes}}]
+                }
+            
+            # If no properties to update, return success
+            if not properties:
+                logger.info("No properties to update")
+                return True
             
             # Update project
             endpoint = f"pages/{project['id']}"
-            update_data = {
-                "properties": {
-                    "Notes": {
-                        "rich_text": [{"text": {"content": updated_notes}}]
-                    }
-                }
-            }
+            update_request = {"properties": properties}
             
-            result = await self._make_request("PATCH", endpoint, update_data)
+            result = await self._make_request("PATCH", endpoint, update_request)
             if result:
                 logger.info(f"Notes added to project: {project['name']}")
                 return True
@@ -285,14 +312,11 @@ class NotionAPI:
             
             # Optionally add archive reason to notes
             if success and reason:
-                current_notes = project.get("notes", "")
-                archive_note = f"Archived: {reason}"
-                if current_notes:
-                    updated_notes = f"{current_notes}\n\n{archive_note}"
-                else:
-                    updated_notes = archive_note
-                
-                await self.add_notes_to_project(project_identifier, archive_note)
+                archive_data = {
+                    'additional_notes': f"Archived: {reason}",
+                    'note_type': 'archive'
+                }
+                await self.add_notes_to_project(project_identifier, archive_data)
             
             return success
                 
