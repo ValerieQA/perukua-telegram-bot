@@ -747,3 +747,154 @@ class NotionAPI:
             logger.error(f"Error creating project with optimal columns: {e}")
             return None
 
+
+    # ========================================
+    # SIMILAR PROJECT SEARCH METHODS
+    # ========================================
+    
+    async def find_similar_projects(self, search_keywords: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """Find projects similar to the search keywords"""
+        try:
+            # Get all projects
+            all_projects = await self.get_all_projects()
+            if not all_projects:
+                return []
+            
+            # Calculate similarity scores
+            scored_projects = []
+            keywords = search_keywords.lower().split()
+            
+            for project in all_projects:
+                score = self._calculate_similarity_score(project, keywords)
+                if score > 0:
+                    project_with_score = project.copy()
+                    project_with_score['similarity_score'] = score
+                    scored_projects.append(project_with_score)
+            
+            # Sort by similarity score (highest first) and return top results
+            scored_projects.sort(key=lambda x: x['similarity_score'], reverse=True)
+            return scored_projects[:limit]
+            
+        except Exception as e:
+            logger.error(f"Error finding similar projects: {e}")
+            return []
+    
+    def _calculate_similarity_score(self, project: Dict[str, Any], keywords: List[str]) -> float:
+        """Calculate similarity score between project and keywords"""
+        try:
+            score = 0.0
+            
+            # Get project text fields for comparison
+            name = project.get('name', '').lower()
+            project_type = project.get('type', '').lower()
+            notes = project.get('notes', '').lower()
+            original_audio = project.get('original_audio', '').lower()
+            tags = [tag.lower() for tag in project.get('tags', [])]
+            
+            # Combine all text for searching
+            all_text = f"{name} {project_type} {notes} {original_audio} {' '.join(tags)}"
+            
+            for keyword in keywords:
+                keyword = keyword.lower()
+                
+                # Exact match in name (highest weight)
+                if keyword in name:
+                    score += 10.0
+                
+                # Exact match in type
+                if keyword in project_type:
+                    score += 8.0
+                
+                # Exact match in tags
+                if keyword in ' '.join(tags):
+                    score += 6.0
+                
+                # Partial match in notes or original audio
+                if keyword in notes or keyword in original_audio:
+                    score += 3.0
+                
+                # Fuzzy matching for common variations
+                if self._fuzzy_match(keyword, name):
+                    score += 5.0
+                
+                if self._fuzzy_match(keyword, project_type):
+                    score += 4.0
+            
+            return score
+            
+        except Exception as e:
+            logger.error(f"Error calculating similarity score: {e}")
+            return 0.0
+    
+    def _fuzzy_match(self, keyword: str, text: str) -> bool:
+        """Simple fuzzy matching for similar words"""
+        try:
+            # Check if keyword is a substring of any word in text
+            words = text.split()
+            for word in words:
+                if len(keyword) >= 3 and keyword in word:
+                    return True
+                if len(word) >= 3 and word in keyword:
+                    return True
+            
+            # Check for common variations
+            variations = {
+                'dance': ['dancing', 'dancer', 'dances'],
+                'course': ['courses', 'class', 'classes', 'training'],
+                'workshop': ['workshops', 'session', 'sessions'],
+                'song': ['songs', 'music', 'track', 'tracks'],
+                'retreat': ['retreats', 'gathering', 'event'],
+                'book': ['books', 'writing', 'text'],
+                'album': ['albums', 'collection', 'compilation']
+            }
+            
+            for base_word, variants in variations.items():
+                if keyword == base_word and any(variant in text for variant in variants):
+                    return True
+                if keyword in variants and base_word in text:
+                    return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error in fuzzy matching: {e}")
+            return False
+    
+    def format_similar_projects_for_display(self, projects: List[Dict[str, Any]]) -> str:
+        """Format similar projects for user display"""
+        try:
+            if not projects:
+                return "No similar projects found."
+            
+            formatted = "Found similar projects:\n\n"
+            
+            for i, project in enumerate(projects, 1):
+                name = project.get('name', 'Untitled')
+                project_type = project.get('type', 'Project')
+                status = project.get('status', 'Unknown')
+                score = project.get('similarity_score', 0)
+                
+                # Add emoji for project type
+                type_emojis = {
+                    'Song': '🎵',
+                    'Book': '📖', 
+                    'Course': '🎓',
+                    'Retreat': '🏔️',
+                    'Workshop': '🛠️',
+                    'Album': '💿',
+                    'Project': '📋'
+                }
+                emoji = type_emojis.get(project_type, '📋')
+                
+                formatted += f"{i}️⃣ {emoji} **{name}**\n"
+                formatted += f"   Type: {project_type} | Status: {status}\n"
+                if score > 0:
+                    formatted += f"   Match: {score:.1f}\n"
+                formatted += "\n"
+            
+            return formatted
+            
+        except Exception as e:
+            logger.error(f"Error formatting similar projects: {e}")
+            return "Error displaying similar projects."
+
