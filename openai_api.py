@@ -60,7 +60,7 @@ class OpenAIAPI:
         """Analyze user intent in message"""
         try:
             system_prompt = """
-You are Peruquois’ personal assistant, a creative woman working on many projects.
+You are Peruquois' personal assistant, a creative woman working on many projects.
 
 Your task is to analyze her messages and determine what she wants to do:
 
@@ -75,6 +75,30 @@ Your task is to analyze her messages and determine what she wants to do:
 Project types: Song, Book, Course, Retreat, Workshop, Album
 Statuses: Idea, In Progress, Paused, Completed, Released, Archived
 
+IMPORTANT: Recognize BOTH descriptive language AND direct commands as project creation requests.
+
+Examples of create_project language:
+
+DESCRIPTIVE LANGUAGE (Peruquois's natural style):
+- "An adjustment to the idea of the Level Two dance course would be..."
+- "I have an idea for a song about..."
+- "The idea is to create something accessible..."
+- "I want to develop a workshop that..."
+- "It becomes available as a compact offering..."
+- "Looking at how to make this more..."
+
+DIRECT COMMANDS:
+- "Create new project with rich text fields"
+- "Create new song about moonlight"
+- "Make new workshop about feminine energy"
+- "Start new dance course"
+- "Begin new retreat project"
+- "Create course with detailed notes"
+- "Create project"
+- "Make new album"
+
+ANY mention of creating, making, starting, or beginning something new should be recognized as create_project.
+
 IMPORTANT for the "notes" field:
 - Preserve ALL details from the original message
 - DO NOT simplify or shorten creative descriptions
@@ -86,7 +110,35 @@ IMPORTANT for the "notes" field:
 - Include specific track names, techniques, practices
 
 Respond ONLY in JSON format:
-[...full JSON format left unchanged for brevity...]
+{
+    "action": "create_project|update_status|add_notes|update_project_info|archive_project|query_projects|general_chat",
+    "confidence": 0.0-1.0,
+    "message": "original message text",
+    "project_data": {
+        "name": "extracted or inferred project name",
+        "type": "Song|Book|Course|Retreat|Workshop|Album",
+        "status": "Idea|In Progress|Paused|Completed|Released|Archived",
+        "notes": "detailed notes preserving ALL original content and nuances",
+        "tags": ["tag1", "tag2"]
+    },
+    "project_identifier": "for update actions - keywords to find the project",
+    "new_status": "for status updates",
+    "additional_notes": "for add_notes actions",
+    "note_type": "update|reflection|progress",
+    "updates": {
+        "name": "new name",
+        "type": "new type",
+        "tags": ["new", "tags"]
+    },
+    "reason": "reason for archiving or status change",
+    "query_type": "by_status|by_type|all",
+    "filters": {
+        "status": "status to filter by",
+        "type": "type to filter by"
+    }
+}
+
+Only include fields relevant to the detected action. For create_project, focus on project_data. For other actions, include the relevant fields.
 """
             user_prompt = f"Message from Peruquois: {text}"
 
@@ -111,7 +163,7 @@ Respond ONLY in JSON format:
         """Generate a response in the style of Peruquois"""
         try:
             system_prompt = """
-You are Peruquois’ personal assistant — a creative woman, musician, and feminine teacher.
+You are Peruquois' personal assistant — a creative woman, musician, and feminine teacher.
 
 Your tone:
 - Warm, supportive, inspiring
@@ -166,7 +218,21 @@ Tone:
 - Write in English
 - Use Markdown for formatting
 
-[Emoji list omitted for brevity]
+Project type emojis:
+- Song: 🎵
+- Book: 📖
+- Course: 🎓
+- Retreat: 🏔️
+- Workshop: 🛠️
+- Album: 💿
+
+Status emojis:
+- Idea: 💡
+- In Progress: 🔥
+- Paused: ⏸️
+- Completed: ✅
+- Released: 🚀
+- Archived: 📦
 """
             projects_text = "Projects:\n"
             for project in projects:
@@ -272,3 +338,70 @@ Tone:
         except Exception as e:
             logger.error(f"Error during OpenAI Chat API request: {e}")
             return None
+
+    
+    async def analyze_optimal_columns(self, text: str) -> Dict[str, Any]:
+        """Analyze text to determine what columns would be optimal for this project"""
+        try:
+            system_prompt = """
+You are an expert database designer for creative projects. Analyze the user's request and determine what database columns would be most useful for tracking this type of project.
+
+Consider:
+- Project type (song, workshop, retreat, dance, etc.)
+- Specific details mentioned (instruments, duration, location, etc.)
+- Workflow needs (collaboration, publishing, resources, etc.)
+- Creative process tracking (inspiration, mood, energy, etc.)
+
+Respond with JSON containing:
+{
+    "project_type": "detected project type",
+    "content_analysis": "key themes and details",
+    "recommended_columns": [
+        {
+            "name": "Column Name",
+            "type": "rich_text|select|multi_select|number|date|checkbox|url",
+            "reason": "why this column would be useful",
+            "options": ["option1", "option2"] // only for select/multi_select
+        }
+    ],
+    "priority": "high|medium|low"
+}
+"""
+            user_prompt = f"Analyze this project request for optimal database columns: {text}"
+
+            response = await self._make_chat_request(system_prompt, user_prompt)
+
+            if response:
+                try:
+                    column_data = json.loads(response)
+                    logger.info(f"Column analysis: {column_data}")
+                    return column_data
+                except json.JSONDecodeError:
+                    logger.error(f"Failed to parse column analysis JSON: {response}")
+                    return {"priority": "low", "recommended_columns": []}
+            else:
+                return {"priority": "low", "recommended_columns": []}
+
+        except Exception as e:
+            logger.error(f"Error analyzing optimal columns: {e}")
+            return {"priority": "low", "recommended_columns": []}
+
+    async def enhanced_intent_analysis(self, text: str) -> Dict[str, Any]:
+        """Enhanced intent analysis that includes column optimization"""
+        try:
+            # Get regular intent analysis
+            intent_analysis = await self.analyze_intent(text)
+            
+            # Add column analysis for create_project actions
+            if intent_analysis.get("action") == "create_project":
+                logger.info("Analyzing optimal columns for project creation...")
+                column_analysis = await self.analyze_optimal_columns(text)
+                intent_analysis["column_analysis"] = column_analysis
+                intent_analysis["should_create_columns"] = column_analysis.get("priority") in ["high", "medium"]
+            
+            return intent_analysis
+            
+        except Exception as e:
+            logger.error(f"Error in enhanced intent analysis: {e}")
+            return await self.analyze_intent(text)  # Fallback to regular analysis
+
