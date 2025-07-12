@@ -150,7 +150,7 @@ Respond ONLY in JSON format:
     }
 }
 
-Only include fields relevant to the detected action. For create_project, focus on project_data. For other actions, include the relevant fields.
+Only include fields relevant to the detected action. For create_project, focus on project_data. For clarify_intent, include both project_data (with processed notes) and search_keywords. For other actions, include the relevant fields.
 """
             user_prompt = f"Message from Peruquois: {text}"
 
