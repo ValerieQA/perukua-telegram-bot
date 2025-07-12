@@ -70,7 +70,8 @@ Your task is to analyze her messages and determine what she wants to do:
 4. update_project_info - update project information (name, type, tags)
 5. archive_project - archive a project
 6. query_projects - get information about projects
-7. general_chat - general conversation without specific actions
+7. clarify_intent - when it's unclear if this is a new project or update to existing
+8. general_chat - general conversation without specific actions
 
 Project types: Song, Book, Course, Retreat, Workshop, Album
 DEFAULT RULE: If no specific type is mentioned, use "Project" as the default type.
@@ -79,10 +80,18 @@ Statuses: Idea, In Progress, Paused, Completed, Released, Archived
 
 IMPORTANT: Recognize BOTH descriptive language AND direct commands as project creation requests.
 
+CLARIFY_INTENT cases - when unsure if new project or update to existing:
+- "An adjustment to the [existing project name]..."
+- "Addition to the [project]..."
+- "Update to the [project]..."
+- "Change to the [project]..."
+- "Modification of [project]..."
+- "Instead of [project] being..."
+- When mentioning specific existing project names with modifications
+
 Examples of create_project language:
 
 DESCRIPTIVE LANGUAGE (Peruquois's natural style):
-- "An adjustment to the idea of the Level Two dance course would be..."
 - "I have an idea for a song about..."
 - "The idea is to create something accessible..."
 - "I want to develop a workshop that..."
@@ -113,17 +122,18 @@ IMPORTANT for the "notes" field:
 
 Respond ONLY in JSON format:
 {
-    "action": "create_project|update_status|add_notes|update_project_info|archive_project|query_projects|general_chat",
+    "action": "create_project|update_status|add_notes|update_project_info|archive_project|query_projects|clarify_intent|general_chat",
     "confidence": 0.0-1.0,
     "message": "original message text",
     "project_data": {
         "name": "extracted or inferred project name",
-        "type": "Song|Book|Course|Retreat|Workshop|Album",
+        "type": "Song|Book|Course|Retreat|Workshop|Album|Project",
         "status": "Idea|In Progress|Paused|Completed|Released|Archived",
         "notes": "detailed notes preserving ALL original content and nuances",
         "tags": ["tag1", "tag2"]
     },
     "project_identifier": "for update actions - keywords to find the project",
+    "search_keywords": "for clarify_intent - keywords to search similar projects",
     "new_status": "for status updates",
     "additional_notes": "for add_notes actions",
     "note_type": "update|reflection|progress",
