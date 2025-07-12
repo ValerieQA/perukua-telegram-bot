@@ -73,6 +73,8 @@ Your task is to analyze her messages and determine what she wants to do:
 7. general_chat - general conversation without specific actions
 
 Project types: Song, Book, Course, Retreat, Workshop, Album
+DEFAULT RULE: If no specific type is mentioned, use "Project" as the default type.
+For "Create new project" or similar generic requests, always return type: "Project".
 Statuses: Idea, In Progress, Paused, Completed, Released, Archived
 
 IMPORTANT: Recognize BOTH descriptive language AND direct commands as project creation requests.
