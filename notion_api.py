@@ -216,7 +216,7 @@ class NotionAPI:
             
             # Handle Processed Notes updates
             if 'additional_notes' in update_data:
-                current_notes = project.get("notes", "")
+                current_notes = project.get("notes", "")  # This reads from "notes" which maps to "Processed Notes"
                 additional_notes = update_data['additional_notes']
                 note_type = update_data.get('note_type', 'update')
                 
